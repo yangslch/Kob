@@ -1,7 +1,7 @@
 import { AcGameObject } from "./AcGameObject";
-//障碍物组件，用于动态画墙
+
 export class Wall extends AcGameObject {
-    constructor(r, c, gamemap) {//墙的横纵坐标 + 地图对象
+    constructor(r, c, gamemap) {
         super();
 
         this.r = r;
@@ -14,7 +14,7 @@ export class Wall extends AcGameObject {
         this.render();
     }
 
-    render() {//本项目的render函数即渲染函数
+    render() {
         const L = this.gamemap.L;
         const ctx = this.gamemap.ctx;
 

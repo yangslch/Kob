@@ -1,6 +1,3 @@
-<!--
-    游戏区域，用来展示游戏对战的块
--->
 <template>
     <div class="playground">
         <GameMap />
@@ -16,9 +13,7 @@ export default {
     }
 }
 </script>
-<!--
-    vw %多少的游览器宽度， vh %多少的游览器高度。
--->
+
 <style scoped>
 div.playground {
     width: 60vw;
