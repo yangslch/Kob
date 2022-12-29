@@ -19,7 +19,6 @@ public class LoginController {
         //成功则将token拿到并且返回
         String username = map.get("username");
         String password = map.get("password");
-        System.out.println(username + ' ' + password);
         return loginService.getToken(username, password);
     }
 }
