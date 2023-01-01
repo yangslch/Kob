@@ -3,6 +3,7 @@ package com.kob.backend.consumer;
 import com.alibaba.fastjson.JSONObject;
 import com.kob.backend.consumer.utils.Game;
 import com.kob.backend.consumer.utils.JwtAuthentication;
+import com.kob.backend.mapper.RecordMapper;
 import com.kob.backend.mapper.UserMapper;
 import com.kob.backend.pojo.User;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,22 +21,25 @@ import java.util.concurrent.CopyOnWriteArraySet;
 @ServerEndpoint("/websocket/{token}")  // 注意不要以'/'结尾
 public class WebSocketServer {
 
-    //成功建立连接需要从hash表中找到对应的连接，将其返回给客户端
-    //另外因为一个连接就是一个线程，故是多线程的，为了线程安全，使用ConcurrentHashMap
-    final private static ConcurrentHashMap<Integer, WebSocketServer> users = new ConcurrentHashMap<>();
-    //匹配池，也需要是线程安全的容器
+    final public static ConcurrentHashMap<Integer, WebSocketServer> users = new ConcurrentHashMap<>();
     final private static CopyOnWriteArraySet<User> matchpool = new CopyOnWriteArraySet<>();
     private User user;
     private Session session = null;
 
+    //将其注入到websocket中
     private static UserMapper userMapper;
+    public static RecordMapper recordMapper;
+    private Game game = null;
 
+    //通过函数将其注入
     @Autowired
     public void setUserMapper(UserMapper userMapper) {
         WebSocketServer.userMapper = userMapper;
     }
-
-
+    @Autowired
+    public void setRecordMapper(RecordMapper recordMapper) {
+        WebSocketServer.recordMapper = recordMapper;
+    }
 
     @OnOpen
     public void onOpen(Session session, @PathParam("token") String token) throws IOException {
@@ -62,36 +66,49 @@ public class WebSocketServer {
         }
     }
 
-    //开始进行匹配函数
     private void startMatching() {
         System.out.println("start matching!");
         matchpool.add(this.user);
 
         while (matchpool.size() >= 2) {
-            //Iterator是什么容器？
             Iterator<User> it = matchpool.iterator();
             User a = it.next(), b = it.next();
             matchpool.remove(a);
             matchpool.remove(b);
 
-            //分发地图
-            Game game = new Game(13, 14, 20);
+            Game game = new Game(13, 14, 20, a.getId(), b.getId());
             game.createMap();
 
-            //将2个对手的信息告诉给彼此，将a告诉b，将b告诉a
+            //创建游戏后，将游戏发给两名玩家
+            users.get(a.getId()).game = game;
+            users.get(b.getId()).game = game;
+
+            //另起一个线程执行任务
+            game.start();
+
+            JSONObject respGame = new JSONObject();
+            //得到玩家A,B的坐标
+            respGame.put("a_id", game.getPlayerA().getId());
+            respGame.put("a_sx", game.getPlayerA().getSx());
+            respGame.put("a_sy", game.getPlayerA().getSy());
+            respGame.put("b_id", game.getPlayerB().getId());
+            respGame.put("b_sx", game.getPlayerB().getSx());
+            respGame.put("b_sy", game.getPlayerB().getSy());
+            //传入地图信息
+            respGame.put("map", game.getG());
+
             JSONObject respA = new JSONObject();
             respA.put("event", "start-matching");
             respA.put("opponent_username", b.getUsername());
             respA.put("opponent_photo", b.getPhoto());
-            respA.put("gamemap", game.getG());
-            //获取a的链接，并且给前端发送信息
+            respA.put("game", respGame);
             users.get(a.getId()).sendMessage(respA.toJSONString());
 
             JSONObject respB = new JSONObject();
             respB.put("event", "start-matching");
             respB.put("opponent_username", a.getUsername());
             respB.put("opponent_photo", a.getPhoto());
-            respB.put("gamemap", game.getG());
+            respB.put("game", respGame);//玩家地图的一致性
             users.get(b.getId()).sendMessage(respB.toJSONString());
         }
     }
@@ -101,17 +118,26 @@ public class WebSocketServer {
         matchpool.remove(this.user);
     }
 
-    //从前端接收到请求，判断是否开始匹配/停止匹配
+    private void move(int direction) {//设置玩家A,B的移动方向
+        if (game.getPlayerA().getId().equals(user.getId())) {
+            game.setNextStepA(direction);
+        } else if (game.getPlayerB().getId().equals(user.getId())) {
+            game.setNextStepB(direction);
+        }
+    }
+
     @OnMessage
-    public void onMessage(String message, Session session) {  // 当做路由
+    public void onMessage(String message, Session session) {  // 当做路由，即将从前端收到的信息
+        //传递给后端进行操作
         System.out.println("receive message!");
-        //解析Json数据
         JSONObject data = JSONObject.parseObject(message);
         String event = data.getString("event");
         if ("start-matching".equals(event)) {
-            startMatching();
+            startMatching();//开始匹配
         } else if ("stop-matching".equals(event)) {
-            stopMatching();
+            stopMatching();//停止匹配
+        } else if ("move".equals(event)) {
+            move(data.getInteger("direction"));//蛇的移动
         }
     }
 
