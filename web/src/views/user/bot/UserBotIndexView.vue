@@ -1,6 +1,4 @@
 <template>
-    <!--containner 动态调整每一份的大小-->
-    <!--使用boatstrap中的grid布局，将整体分为12分，左边图像部分占3份，右边站9份-->
     <div class="container">
         <div class="row">
             <div class="col-3">
@@ -117,7 +115,7 @@
 </template>
 
 <script>
-import { ref, reactive } from 'vue'//将变量和前端绑定起来，变量绑定用ref，对象绑定用reactive
+import { ref, reactive } from 'vue'
 import $ from 'jquery'
 import { useStore } from 'vuex'
 import { Modal } from 'bootstrap/dist/js/bootstrap'
